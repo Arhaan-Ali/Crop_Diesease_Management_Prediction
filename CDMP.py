@@ -19,7 +19,24 @@ batch_size = 4
 
 dataloader = { }
 
-trainset = torchvision.datasets.ImageFolder(root='Finalised_Dataset/Train', transform=transform)
+train_transform = transforms.Compose([
+    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomRotation(degrees=15),
+    transforms.ColorJitter(
+        brightness=0.2,
+        contrast=0.2,
+        saturation=0.2,
+        hue=0.05
+    ),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=(0.5, 0.5 ,0.5),
+        std=(0.5,0.5,0.5)
+    )
+])
+
+trainset = torchvision.datasets.ImageFolder(root='Finalised_Dataset/Train', transform= train_transform )
 dataloader['Train'] = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                           shuffle=True, num_workers=0)
 
@@ -37,7 +54,7 @@ dataset_sizes = {"Train" : len(trainset) , "Test"  : len(testset) ,  "Validate" 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 print(f"Using {device} device")
 
-def train_model(model, criterion , optimizer , scheduler , num_epoch = 1) :
+def train_model(model, criterion , optimizer , scheduler , num_epoch = 15) :
     since = time.time()
 
 
@@ -102,11 +119,9 @@ def train_model(model, criterion , optimizer , scheduler , num_epoch = 1) :
         model.load_state_dict(torch.load(best_model_params_path, weights_only=True))
     return model
 
-model_ft = models.resnet18(weights='IMAGENET1K_V1')
-num_ftrs = model_ft.fc.in_features
-# Here the size of each output sample is set to 2.
-# Alternatively, it can be generalized to ``nn.Linear(num_ftrs, len(class_names))``.
-model_ft.fc = nn.Linear(num_ftrs, 4)
+model_ft = models.mobilenet_v3_large(weights='IMAGENET1K_V1')
+num_ftrs = model_ft.classifier[-1].in_features
+model_ft.classifier[-1] = nn.Linear(num_ftrs, 4)
 
 model_ft = model_ft.to(device)
 
@@ -117,27 +132,32 @@ optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
 model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-                       num_epoch = 1)
-
-model_conv = torchvision.models.resnet18(weights='IMAGENET1K_V1')
-for param in model_conv.parameters():
-    param.requires_grad = False
-
-# Parameters of newly constructed modules have requires_grad=True by default
-num_ftrs = model_conv.fc.in_features
-model_conv.fc = nn.Linear(num_ftrs, 4)
-
-model_conv = model_conv.to(device)
+                       num_epoch = 15)
 
 criterion = nn.CrossEntropyLoss()
 
-# Observe that only parameters of final layer are being optimized as
-# opposed to before.
-optimizer_conv = optim.SGD(model_conv.fc.parameters(), lr=0.001, momentum=0.9)
 
-# Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=7, gamma=0.1)
+def test_model(model, criterion) :
+    model.eval()
 
-model_conv = train_model(model_conv, criterion, optimizer_conv,
-                         exp_lr_scheduler, num_epoch = 1)
+    running_loss = 0.0
+    running_corrects = 0
 
+    with torch.no_grad():
+        for inputs, labels in dataloader['Test']:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            loss = criterion(outputs, labels)
+
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels)
+
+    test_loss = running_loss /dataset_sizes['Test']
+    test_acc = running_corrects.double() / dataset_sizes['Test']
+
+    print(f"Test loss: {test_loss:.4f} test acc: {test_acc:.4f}")
+
+test_model(model_ft, criterion)
