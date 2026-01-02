@@ -161,3 +161,5 @@ def test_model(model, criterion) :
     print(f"Test loss: {test_loss:.4f} test acc: {test_acc:.4f}")
 
 test_model(model_ft, criterion)
+torch.save(model_ft.state_dict(), "rice_disease_model.pt")
+print("Model saved as rice_disease_model.pt")
