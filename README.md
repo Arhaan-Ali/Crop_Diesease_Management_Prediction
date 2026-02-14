@@ -93,11 +93,30 @@ Server will start at:
 ```
 http://127.0.0.1:8000
 ```
+5. Navigate to the project directory.
+```
+cd <YOUR_PROJECT_NAME>
+```
+6. Install the necessary dependencies.
+```
+npm i
+```
+7. Start the development server with auto-reloading and an instant preview.
+```
+npm run dev
+```
 
 ## Tech Stack
+### Backennd
 * Python 3.11
 * PyTorch
 * Torchvision
 * FastAPI
+### Frontend
+* Vite
+* TypeScript
+* React
+* shadcn-ui
+* Tailwind CSS
 * Uvicorn
 * Pillow
